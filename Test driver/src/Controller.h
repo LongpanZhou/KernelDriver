@@ -1,0 +1,30 @@
+#pragma once
+#include <ntddk.h>
+
+//PROTOCOL
+#define IO_ATTACH_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IO_READ_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IO_WRITE_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+//STRUCTS
+struct Request
+{
+	HANDLE hProcess;
+	ULONG PID;
+	ULONG Type;
+
+	PVOID TargetAddress;
+	PVOID Buffer;
+
+	SIZE_T InSize;
+	SIZE_T OutSize;
+};
+
+//FUNCS
+namespace Controller
+{
+	NTSTATUS CreateCall(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+	NTSTATUS CloseCall(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+	NTSTATUS ControlCall(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+};
+
