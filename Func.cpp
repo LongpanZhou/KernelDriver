@@ -4,20 +4,21 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
 {
     // Check if EProcess is empty
     if (!pEProcess ) return nullptr;
+    print(INFO("EProcess Address: %p"), pEProcess);
 
     // Check if target module name is empty
-    print(INFO("Target Module Name: %ws"), ModuleName);
     if (!ModuleName || ModuleName[0] == '\0')
         return nullptr;
+    print(INFO("Target Module Name: %ws"), ModuleName);
 
     // Get KProcess n CR3
     _KPROCESS *pKProcess = (_KPROCESS *) CONTAINING_RECORD(pEProcess, _EPROCESS, Pcb);
     cr3 CR3 = {pKProcess->DirectoryTableBase};
+    print(INFO("KProcess Address: %p"), pKProcess);
 
     // Get PEB (Process Environment Block)
     _PEB *pPeb = pEProcess->Peb;
     if (!pPeb) return nullptr;
-
 
     // Read LDR (Loader Dynamic Resources)
     _PEB_LDR_DATA *pLdr = ReadVirtualMemory<_PEB_LDR_DATA*>(&pPeb->Ldr, CR3);

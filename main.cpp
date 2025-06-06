@@ -6,7 +6,7 @@ _EPROCESS *EnumerateProcess(const wchar_t *ProcessName);
 
 ntstatus DriverExit(PDRIVER_OBJECT)
 {
-    // Nothing here yet
+    ReadPhysical<address>(nullptr, 4); //Type 4 = Unmap
     return ntstatus::success;
 }
 
@@ -17,10 +17,9 @@ ntstatus DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING)
     DriverObject->DriverUnload = DriverExit;
 
     // Main
-    _EPROCESS* EProcess = EnumerateProcess(L"notepad.exe");
-    print(INFO("EProcess Address: %p"), EProcess);
-
-    void* pModule = EnumerateModuleBaseAddress(EProcess, L"ntdll.dll");
+    _EPROCESS* pEProcess = EnumerateProcess(L"notepad.exe");
+    void* pModule = EnumerateModuleBaseAddress(pEProcess, L"ntdll.dll");
     print(INFO("Module Address: %p"), pModule);
+
     return ntstatus::success;
 }

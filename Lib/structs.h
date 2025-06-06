@@ -1,5 +1,8 @@
 #pragma once
-#pragma warning(push)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
 
 #include <wdk/wdk.hpp>
 

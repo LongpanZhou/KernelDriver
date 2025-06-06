@@ -4,65 +4,71 @@
 using namespace arch;
 using namespace intrin;
 
+namespace {
+    inline pdpte_1gb* PDPTE_1GB;
+    inline pde_2mb* PDE_2MB;
+    inline pte* PTE_4KB;
+
+    inline address VA_1GB{};
+    inline address VA_2MB{};
+    inline address VA_4KB{};
+}
+
 // MapPhysicalToVirtual
 template<typename T>
-bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
+bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
 {
-    // Global variables
-    static pml4e* PML4E;
-    static pdpte_1gb* PDPTE;
-    static pde_2mb* PDE;
-    static pte* PTE;
-
-    static address VA_1GB;
-    static address VA_2MB;
-    static address VA_4KB;
-
     // Cache
     switch (type)
     {
         case 0:
-            if (PTE)
+            if (PTE_4KB && VA_4KB)
             {
-                PTE->page_frame_number = PhysicalAddress >> 12;
+                PTE_4KB->page_frame_number = PhysicalAddress >> 12;
                 VA_4KB.offset = PhysicalAddress.offset;
 
-                invlpg(VA_4KB);
-                Callback(VA_4KB);
-                return true;
+                return Callback(VA_4KB);
             }
             break;
         case 1:
-            if (PDE)
+            if (PDE_2MB && VA_2MB)
             {
-                PDE->page_frame_number = PhysicalAddress >> 21;
+                PDE_2MB->page_frame_number = PhysicalAddress >> 21;
                 VA_2MB.offset = PhysicalAddress.offset;
                 VA_2MB.p1_index = PhysicalAddress.p1_index;
 
-                invlpg(VA_2MB);
-                Callback(VA_2MB);
-                return true;
+                return Callback(VA_2MB);
             }
             break;
         case 2:
-            if (PDPTE)
+            if (PDPTE_1GB && VA_1GB)
             {
-                PDPTE->page_frame_number = PhysicalAddress >> 30;
+                PDPTE_1GB->page_frame_number = PhysicalAddress >> 30;
                 VA_1GB.offset = PhysicalAddress.offset;
                 VA_1GB.p1_index = PhysicalAddress.p1_index;
                 VA_1GB.p2_index = PhysicalAddress.p2_index;
 
-                invlpg(VA_1GB);
-                Callback(VA_1GB);
-                return true;
+                return Callback(VA_1GB);
             }
             break;
+        case 4:
+            if (PDPTE_1GB) PDPTE_1GB->present = 0;
+            if (PDE_2MB) PDE_2MB->present = 0;
+            if (PTE_4KB) PTE_4KB->present = 0;
+            return true;
+        default:
+            print(ERROR("Invalid Type %d"), type);
+            return false;
     }
 
     // Local variables
     int PML4_IDX, PDPT_IDX, PD_IDX, PT_IDX;
-    address tmp;
     cr3 CR3 = read_cr3();
+    address tmp;
+
+    pml4e* PML4E;
+    pdpte* PDPTE;
+    pde* PDE;
 
     // PML4
     tmp = win::MmGetVirtualForPhysical({CR3.pml4_frame_number << 12});
@@ -76,16 +82,16 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
     tmp = win::MmGetVirtualForPhysical({PML4E->page_frame_number << 12});
     for (PDPT_IDX = 0; PDPT_IDX < 512; ++PDPT_IDX)
     {
-        PDPTE = &((pdpte_1gb *) tmp)[PDPT_IDX];
+        PDPTE = &((pdpte *) tmp)[PDPT_IDX];
         if (type == 2)
         {
             if (PDPTE->present) continue;
-            print("HIT");
 
-            PDPTE->present = 1;
-            PDPTE->write = 1;
-            PDPTE->page_size = 1;
-            PDPTE->page_frame_number = PhysicalAddress >> 30;
+            PDPTE_1GB = (pdpte_1gb*)PDPTE;
+            PDPTE_1GB->present = 1;
+            PDPTE_1GB->write = 1;
+            PDPTE_1GB->page_size = 1;
+            PDPTE_1GB->page_frame_number = PhysicalAddress >> 30;
 
             VA_1GB.offset = PhysicalAddress.offset;
             VA_1GB.p1_index = PhysicalAddress.p1_index;
@@ -93,9 +99,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
             VA_1GB.p3_index = PDPT_IDX;
             VA_1GB.p4_index = PML4_IDX;
 
-            invlpg(VA_1GB);
-            Callback(VA_1GB);
-            return true;
+            return Callback(VA_1GB);
         }
 
         if (PDPTE->present) break;
@@ -105,16 +109,16 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
     tmp = win::MmGetVirtualForPhysical({((pdpte*)PDPTE)->page_frame_number << 12});
     for (PD_IDX = 0; PD_IDX < 512; ++PD_IDX)
     {
-        PDE = &((pde_2mb *) tmp)[PD_IDX];
+        PDE = &((pde *) tmp)[PD_IDX];
         if (type == 1)
         {
             if (PDE->present) continue;
-            print("HIT");
 
-            PDE->present = 1;
-            PDE->write = 1;
-            PDE->page_size = 1;
-            PDE->page_frame_number = PhysicalAddress >> 21;
+            PDE_2MB = (pde_2mb *)PDE;
+            PDE_2MB->present = 1;
+            PDE_2MB->write = 1;
+            PDE_2MB->page_size = 1;
+            PDE_2MB->page_frame_number = PhysicalAddress >> 21;
 
             VA_2MB.offset = PhysicalAddress.offset;
             VA_2MB.p1_index = PhysicalAddress.p1_index;
@@ -122,9 +126,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
             VA_2MB.p3_index = PDPT_IDX;
             VA_2MB.p4_index = PML4_IDX;
 
-            invlpg(VA_2MB);
-            Callback(VA_2MB);
-            return true;
+            return Callback(VA_2MB);
         }
 
         if (PDE->present) break;
@@ -134,12 +136,12 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
     tmp = win::MmGetVirtualForPhysical({((pde*)PDE)->page_frame_number << 12});
     for (PT_IDX = 0; PT_IDX < 512; ++PT_IDX)
     {
-        PTE = &((pte *) tmp)[PT_IDX];
-        if (PTE->present) continue;
+        PTE_4KB = &((pte *) tmp)[PT_IDX];
+        if (PTE_4KB->present) continue;
 
-        PTE->present = 1;
-        PTE->write = 1;
-        PTE->page_frame_number = PhysicalAddress >> 12;
+        PTE_4KB->present = 1;
+        PTE_4KB->write = 1;
+        PTE_4KB->page_frame_number = PhysicalAddress >> 12;
 
         VA_4KB.offset = PhysicalAddress.offset;
         VA_4KB.p1_index = PT_IDX;
@@ -147,9 +149,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type)
         VA_4KB.p3_index = PDPT_IDX;
         VA_4KB.p4_index = PML4_IDX;
 
-        invlpg(VA_4KB);
-        Callback(VA_4KB);
-        return true;
+        return Callback(VA_4KB);
     }
 
     return false;
@@ -162,8 +162,12 @@ T ReadPhysical(address PhysicalAddress, int type = 0)
     T tmp{};
     MapPhysicalToVirtual(PhysicalAddress,
         [&tmp](address VirtualAddress)
-        {memcpy(&tmp, VirtualAddress, sizeof(T));},
-        (PhysicalAddress>>7) & 1 ? type : 0
+        {
+            invlpg(VirtualAddress);
+            memcpy(&tmp, VirtualAddress, sizeof(T));
+            return true;
+        },
+        type
         );
     return tmp;
 }
@@ -172,8 +176,12 @@ bool ReadPhysical(address PhysicalAddress, void* pBuffer, size_t Size, int type 
 {
     return MapPhysicalToVirtual(PhysicalAddress,
             [pBuffer, Size](address VirtualAddress)
-            {memcpy(pBuffer, VirtualAddress, Size);},
-            (PhysicalAddress>>7) & 1 ? type : 0
+            {
+                invlpg(VirtualAddress);
+                memcpy(pBuffer, VirtualAddress, Size);
+                return true;
+            },
+            type
     );
 }
 
