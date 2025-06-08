@@ -5,16 +5,13 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
     // Check if EProcess is empty
     if (!pEProcess ) return nullptr;
     print(INFO("EProcess Address: %p"), pEProcess);
-
-    // Check if target module name is empty
-    if (!ModuleName || ModuleName[0] == '\0')
-        return nullptr;
     print(INFO("Target Module Name: %ws"), ModuleName);
 
     // Get KProcess n CR3
     _KPROCESS *pKProcess = (_KPROCESS *) CONTAINING_RECORD(pEProcess, _EPROCESS, Pcb);
     cr3 CR3 = {pKProcess->DirectoryTableBase};
     print(INFO("KProcess Address: %p"), pKProcess);
+    print(INFO("KProcess CR3: %p"), (ULONGLONG)CR3);
 
     // Get PEB (Process Environment Block)
     _PEB *pPeb = pEProcess->Peb;
@@ -26,7 +23,7 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
 
     // Init variables for loop
     wchar_t pBuffer[256];
-    _LDR_DATA_TABLE_ENTRY ldrEntry;
+    _LDR_DATA_TABLE_ENTRY entry;
     _LIST_ENTRY moduleList = ReadVirtualMemory<_LIST_ENTRY>(&pLdr->InLoadOrderModuleList, CR3);
     UNICODE_STRING moduleName;
 
@@ -36,16 +33,16 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
     // Loop through all modules
     do
     {
-        // Get LDR Entry n increment pCurrent
-        if (!ReadVirtualMemory(pCurrent, CR3, &ldrEntry, sizeof(_LDR_DATA_TABLE_ENTRY)))
+        // Get LDR Entry
+        if (!ReadVirtualMemory(pCurrent, CR3, &entry, sizeof(_LDR_DATA_TABLE_ENTRY)))
             break;
 
-        // Load module name n increment pCurrent
-        moduleName = ldrEntry.BaseDllName;
-        pCurrent = ldrEntry.InLoadOrderLinks.Flink;
+        // Get module name n increment pCurrent
+        moduleName = entry.BaseDllName;
+        pCurrent = entry.InLoadOrderLinks.Flink;
 
         // Check if Dll is valid
-        if (!(ldrEntry.DllBase && moduleName.Length && moduleName.Buffer))
+        if (!(entry.DllBase && moduleName.Length && moduleName.Buffer))
             continue;
 
         // Read memory into buffer
@@ -55,46 +52,95 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
         // Print info
         print(INFO("Module Name: %ws"), pBuffer);
 
-        // Substring cmp
+        // Str cmp
         if (!wcscmp(pBuffer, ModuleName))
-            return GetPhysicalAddress(ldrEntry.DllBase, CR3);
+            return GetPhysicalAddress(entry.DllBase, CR3).first;
     } while (pCurrent != pHead);
 
+    // Not Found
+    print(ERROR("%ws NOT FOUND!"), ModuleName);
     return nullptr;
 }
 
-_EPROCESS *EnumerateProcess(const wchar_t *ProcessName)
+PVOID EnumerateKProcess(const wchar_t *ProcessName, const uint64_t PID = -1)
 {
-    // Check if target process name is empty
-    print(INFO("Target Process Name: %ws"), ProcessName);
-    if (!ProcessName || ProcessName[0] == '\0')
-        return nullptr;
+    // Parameters
+    print(INFO("Target KProcess Name: %ws"), ProcessName);
+    print(INFO("Target PID: %p"), PID);
+
+    // Init variables for loop
+    _LIST_ENTRY* pHead = (_LIST_ENTRY*)win::PsLoadedModuleList;
+    _LIST_ENTRY* pCurrent = pHead;
+
+    _KLDR_DATA_TABLE_ENTRY *entry;
+    _UNICODE_STRING moduleName;
+
+    // Loop through all kernel modules
+    do
+    {
+        // Get KLDR entry n get module name n increment pCurrent
+        entry = CONTAINING_RECORD(pCurrent, _KLDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+        moduleName = entry->BaseDllName;
+        pCurrent = pCurrent->Flink;
+
+        // Check if module is valid
+        if (!(entry->DllBase && moduleName.Length && moduleName.Buffer))
+            continue;
+
+        // Print info
+        print(INFO("Module Name: %ws"), moduleName.Buffer);
+
+        // Str cmp
+        if (!wcscmp(moduleName.Buffer, ProcessName))
+            return entry->DllBase;
+
+    }while (pCurrent != pHead);
+
+    // Not Found
+    print(ERROR("%ws NOT FOUND!"), ProcessName);
+    return nullptr;
+}
+
+_EPROCESS *EnumerateEProcess(const wchar_t *ProcessName, const uint64_t PID = -1)
+{
+    // Parameters
+    print(INFO("Target EProcess Name: %ws"), ProcessName);
+    print(INFO("Target PID: %p"), PID);
+    size_t targetLen = wcslen(ProcessName);
 
     // Get system default EProcess n ListEntry
     _EPROCESS *Process = (_EPROCESS *) win::PsInitialSystemProcess;
     _LIST_ENTRY *pHead = &(Process->ActiveProcessLinks);
-    _LIST_ENTRY *pCurrent = pHead->Flink;
+    _LIST_ENTRY *pCurrent = pHead;
 
     // Loop through all process
-    while (pCurrent != pHead)
+    do
     {
         // Get EProcess from ListEntry
         _EPROCESS *pProcess = CONTAINING_RECORD(pCurrent, _EPROCESS, ActiveProcessLinks);
         pCurrent = pCurrent->Flink;
+
+        // PID cmp
+        print(INFO("Process Name: %s, PID: %d"),pProcess->ImageFileName, pProcess->UniqueProcessId);
+        if (pProcess->UniqueProcessId == (void*)PID)
+            return pProcess;
 
         // Check if EProcess has ImageFilePointer n FilePath
         if (!pProcess->ImageFilePointer || !pProcess->ImageFilePointer->FileName.Length)
             continue;
 
         // Print info
-        print(INFO("Process Name: %s, PID: %d, File Path: %ws"),
-              pProcess->ImageFileName, pProcess->UniqueProcessId,
+        print(INFO("File Path: %ws"),
               pProcess->ImageFilePointer->FileName.Buffer);
 
-        // Str cmp
-        if (wcsstr(pProcess->ImageFilePointer->FileName.Buffer, ProcessName))
+        // Sub str cmp
+        size_t processLen = pProcess->ImageFilePointer->FileName.Length / sizeof(wchar_t);
+        if (!wcscmp(pProcess->ImageFilePointer->FileName.Buffer + processLen - targetLen, ProcessName))
             return pProcess;
-    }
 
+    }while (pCurrent != pHead);
+
+    // Not Found
+    print(ERROR("%ws NOT FOUND!"), ProcessName);
     return nullptr;
 }

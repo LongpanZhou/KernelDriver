@@ -18,6 +18,8 @@ namespace {
 template<typename T>
 bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
 {
+    print(INFO("Physical Address: %p"), PhysicalAddress);
+    print(INFO("Type: %d"), type);
     // Cache
     switch (type)
     {
@@ -77,6 +79,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
         PML4E = &((pml4e *)tmp)[PML4_IDX];
         if (PML4E->present) break;
     }
+    print(INFO("MAP PML4E_IDX: %d"), PML4_IDX);
 
     // PDPT
     tmp = win::MmGetVirtualForPhysical({PML4E->page_frame_number << 12});
@@ -105,6 +108,8 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
         if (PDPTE->present) break;
     }
 
+    print(INFO("MAP PDPT_IDX: %d"), PDPT_IDX);
+
     // PD
     tmp = win::MmGetVirtualForPhysical({((pdpte*)PDPTE)->page_frame_number << 12});
     for (PD_IDX = 0; PD_IDX < 512; ++PD_IDX)
@@ -132,6 +137,8 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
         if (PDE->present) break;
     }
 
+    print(INFO("MAP PD_IDX: %d"), PD_IDX);
+
     // PT
     tmp = win::MmGetVirtualForPhysical({((pde*)PDE)->page_frame_number << 12});
     for (PT_IDX = 0; PT_IDX < 512; ++PT_IDX)
@@ -148,6 +155,9 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
         VA_4KB.p2_index = PD_IDX;
         VA_4KB.p3_index = PDPT_IDX;
         VA_4KB.p4_index = PML4_IDX;
+
+        print(INFO("MAP PT_IDX: %d"), PT_IDX);
+        print(INFO("VA_4KB: %p"), VA_4KB);
 
         return Callback(VA_4KB);
     }
@@ -186,46 +196,60 @@ bool ReadPhysical(address PhysicalAddress, void* pBuffer, size_t Size, int type 
 }
 
 // Translate Virtual Address to Physical Address
-address GetPhysicalAddress(address VirtualAddress, cr3 CR3)
+std::pair<address,int> GetPhysicalAddress(address VirtualAddress, cr3 CR3)
 {
+    print(INFO("%p"), (ULONGLONG)CR3);
+    print(INFO("%p"), (ULONGLONG)VirtualAddress);
+
     // Variables
     static pml4e PML4ETable[512];
     pml4e PML4E = PML4ETable[VirtualAddress.p4_index];
 
+    print(INFO("P4 IDX: %d"), VirtualAddress.p4_index);
+    print(INFO("P3 IDX: %d"), VirtualAddress.p3_index);
+    print(INFO("P2 IDX: %d"), VirtualAddress.p2_index);
+    print(INFO("P1 IDX: %d"), VirtualAddress.p1_index);
+    print(INFO("Offset: %d"), VirtualAddress.offset);
+
     // Check Cache
     if (!PML4E.present)
     {
-        ReadPhysical({(CR3.pml4_frame_number << 12) + VirtualAddress.p4_index * 8}, &PML4ETable, sizeof(PML4ETable));
+        ReadPhysical({(CR3.pml4_frame_number << 12)}, &PML4ETable, sizeof(PML4ETable));
         PML4E = PML4ETable[VirtualAddress.p4_index];
-        if (!PML4E) return nullptr;
+        print(INFO("PML4: %p"), (ULONGLONG)PML4E);
+        if (!PML4E) return {};
     }
-
     // Translation...       Type 0: 4KB, Type 1: 2MB, Type 2: 1GB
     auto PDPTE = ReadPhysical<pdpte>({(PML4E.page_frame_number << 12) + VirtualAddress.p3_index * 8});
-    if (!PDPTE) return nullptr;
-    if (((pdpte_1gb)PDPTE).page_size) return ReadPhysical<address>(PDPTE, 2);
+    print(INFO("PDPTE: %p"), (ULONGLONG)PDPTE);
+    if (!PDPTE) return {};
+    if (((pdpte_1gb)PDPTE).page_size)
+        return {((pdpte_1gb)PDPTE).page_frame_number << 30 | VirtualAddress.offset_1gb(), 2};
 
     auto PDE = ReadPhysical<pde>({(PDPTE.page_frame_number << 12) + VirtualAddress.p2_index * 8});
-    if (!PDE) return nullptr;
-    if (((pde_2mb)PDE).page_size) return ReadPhysical<address>(PDE, 1);
+    print(INFO("PDE: %p"), (ULONGLONG)PDE);
+    if (!PDE) return {};
+    if (((pde_2mb)PDE).page_size)
+        return {((pde_2mb)PDE).page_frame_number << 21 | VirtualAddress.offset_2mb(), 1};
 
     auto PT = ReadPhysical<pte>({(PDE.page_frame_number << 12) + VirtualAddress.p1_index * 8});
-    if (!PT) return nullptr;
-    return {PT.page_frame_number << 12 | VirtualAddress.offset};
+    print(INFO("PT: %p"), (ULONGLONG)PT);
+    if (!PT) return {};
+    return {PT.page_frame_number << 12 | VirtualAddress.offset, 0};
 }
 
 // Read Virtual Memory
 template<typename T>
 T ReadVirtualMemory(address TargetAddress, cr3 CR3)
 {
-    address PhysicalAddress = GetPhysicalAddress(TargetAddress, CR3);
-    if (!PhysicalAddress) return T{};
-    return ReadPhysical<T>(PhysicalAddress);
+    std::pair<address,int> tmp = GetPhysicalAddress(TargetAddress, CR3);
+    if (!tmp.first) return T{};
+    return ReadPhysical<T>(tmp.first, tmp.second);
 }
 
 bool ReadVirtualMemory(address VirtualAddress, cr3 CR3, void *pBuffer, size_t Size)
 {
-    address PhysicalAddress = GetPhysicalAddress(VirtualAddress, CR3);
-    if (!PhysicalAddress) return false;
-    return ReadPhysical(PhysicalAddress, pBuffer, Size);
+    std::pair<address,int> tmp = GetPhysicalAddress(VirtualAddress, CR3);
+    if (!tmp.first) return false;
+    return ReadPhysical(tmp.first, pBuffer, Size, tmp.second);
 }
