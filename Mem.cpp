@@ -4,14 +4,15 @@
 using namespace arch;
 using namespace intrin;
 
-namespace {
-    inline pdpte_1gb* PDPTE_1GB;
-    inline pde_2mb* PDE_2MB;
-    inline pte* PTE_4KB;
+namespace
+{
+    pdpe_1gb* PDPTE_1GB;
+    pde_2mb* PDE_2MB;
+    pte* PTE_4KB;
 
-    inline address VA_1GB{};
-    inline address VA_2MB{};
-    inline address VA_4KB{};
+    address VA_1GB{};
+    address VA_2MB{};
+    address VA_4KB{};
 }
 
 // MapPhysicalToVirtual
@@ -67,7 +68,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
     address tmp;
 
     pml4e* PML4E;
-    pdpte* PDPTE;
+    pdpe* PDPTE;
     pde* PDE;
 
     // PML4
@@ -82,12 +83,12 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
     tmp = win::MmGetVirtualForPhysical({PML4E->page_frame_number << 12});
     for (PDPT_IDX = 0; PDPT_IDX < 512; ++PDPT_IDX)
     {
-        PDPTE = &((pdpte *) tmp)[PDPT_IDX];
+        PDPTE = &((pdpe *) tmp)[PDPT_IDX];
         if (type == 2)
         {
             if (PDPTE->present) continue;
 
-            PDPTE_1GB = (pdpte_1gb*)PDPTE;
+            PDPTE_1GB = (pdpe_1gb*)PDPTE;
             PDPTE_1GB->present = 1;
             PDPTE_1GB->write = 1;
             PDPTE_1GB->page_size = 1;
@@ -106,7 +107,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
     }
 
     // PD
-    tmp = win::MmGetVirtualForPhysical({((pdpte*)PDPTE)->page_frame_number << 12});
+    tmp = win::MmGetVirtualForPhysical({PDPTE->page_frame_number << 12});
     for (PD_IDX = 0; PD_IDX < 512; ++PD_IDX)
     {
         PDE = &((pde *) tmp)[PD_IDX];
@@ -133,7 +134,7 @@ bool MapPhysicalToVirtual(address PhysicalAddress, T &&Callback, int type = 0)
     }
 
     // PT
-    tmp = win::MmGetVirtualForPhysical({((pde*)PDE)->page_frame_number << 12});
+    tmp = win::MmGetVirtualForPhysical({PDE->page_frame_number << 12});
     for (PT_IDX = 0; PT_IDX < 512; ++PT_IDX)
     {
         PTE_4KB = &((pte *) tmp)[PT_IDX];
@@ -200,10 +201,10 @@ std::pair<address,int> GetPhysicalAddress(address VirtualAddress, cr3 CR3)
         if (!PML4E) return {};
     }
     // Translation...       Type 0: 4KB, Type 1: 2MB, Type 2: 1GB
-    auto PDPTE = ReadPhysical<pdpte>({(PML4E.page_frame_number << 12) + VirtualAddress.p3_index * 8});
+    auto PDPTE = ReadPhysical<pdpe>({(PML4E.page_frame_number << 12) + VirtualAddress.p3_index * 8});
     if (!PDPTE) return {};
-    if (((pdpte_1gb)PDPTE).page_size)
-        return {((pdpte_1gb)PDPTE).page_frame_number << 30 | VirtualAddress.offset_1gb(), 2};
+    if (((pdpe_1gb)PDPTE).page_size)
+        return {((pdpe_1gb)PDPTE).page_frame_number << 30 | VirtualAddress.offset_1gb(), 2};
 
     auto PDE = ReadPhysical<pde>({(PDPTE.page_frame_number << 12) + VirtualAddress.p2_index * 8});
     if (!PDE) return {};
@@ -220,13 +221,13 @@ template<typename T>
 T ReadVirtualMemory(address TargetAddress, cr3 CR3)
 {
     std::pair<address,int> tmp = GetPhysicalAddress(TargetAddress, CR3);
-    if (!tmp.first) return T{};
+    if (!win::MmIsAddressValid(tmp.first)) return T{};
     return ReadPhysical<T>(tmp.first, tmp.second);
 }
 
 bool ReadVirtualMemory(address VirtualAddress, cr3 CR3, void *pBuffer, size_t Size)
 {
     std::pair<address,int> tmp = GetPhysicalAddress(VirtualAddress, CR3);
-    if (!tmp.first) return false;
+    if (!win::MmIsAddressValid(tmp.first)) return false;
     return ReadPhysical(tmp.first, pBuffer, Size, tmp.second);
 }

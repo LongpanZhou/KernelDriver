@@ -1,11 +1,9 @@
-#include <__filesystem/operations.h>
-
 #include "Mem.cpp"
 
 PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName)
 {
     // Check if EProcess is empty
-    if (!pEProcess) return nullptr;
+    if (!win::MmIsAddressValid(pEProcess)) return nullptr;
     print(INFO("EProcess Address: %p"), pEProcess);
     print(INFO("Target Module Name: %ws"), ModuleName);
 
@@ -17,11 +15,11 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
 
     // Get PEB (Process Environment Block)
     _PEB *pPeb = pEProcess->Peb;
-    if (!pPeb) return nullptr;
+    if (!win::MmIsAddressValid(pPeb)) return nullptr;
 
     // Read LDR (Loader Dynamic Resources)
     _PEB_LDR_DATA *pLdr = ReadVirtualMemory<_PEB_LDR_DATA *>(&pPeb->Ldr, CR3);
-    if (!pLdr) return nullptr;
+    if (!win::MmIsAddressValid(pLdr)) return nullptr;
 
     // Init variables for loop
     wchar_t pBuffer[256];
@@ -165,6 +163,7 @@ PVOID PatternToBytes(char *const Signature)
             case ' ':
                 break;
             case '?':
+                ++i; // ? can only be followed by ' ' or '?'
                 Signature[len++] = '?';
                 break;
             default:
@@ -211,18 +210,32 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     address BaseAddress = ProcessName[0] == L'\0'
                               ? EnumerateKProcess(ModuleName)
                               : EnumerateModuleBaseAddress(EnumerateEProcess(ProcessName), ModuleName);
-    if (!BaseAddress) return nullptr;
+    if (!win::MmIsAddressValid(BaseAddress)) return nullptr;
 
     // Get section
     _IMAGE_DOS_HEADER *dosHeader = (_IMAGE_DOS_HEADER *) BaseAddress;
+    print(INFO("dosHeader: %p"), dosHeader);
+    if (!win::MmIsAddressValid(dosHeader)) return nullptr;
+
     _IMAGE_NT_HEADERS64 *ntHeader = (_IMAGE_NT_HEADERS64 *) (BaseAddress + dosHeader->e_lfanew);
+    print(INFO("ntHeader: %p"), ntHeader);
+    if (!win::MmIsAddressValid(ntHeader)) return nullptr;
+
     _IMAGE_FILE_HEADER *fileHeader = &ntHeader->FileHeader;
+    print(INFO("fileHeader: %p"), fileHeader);
+    if (!win::MmIsAddressValid(fileHeader)) return nullptr;
+
     _IMAGE_OPTIONAL_HEADER64 *optionalHeader = &ntHeader->OptionalHeader;
+    print(INFO("optionalHeader: %p"), optionalHeader);
+    if (!win::MmIsAddressValid(optionalHeader)) return nullptr;
+
     _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *) (
         (uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
-    void *sectionStart{}, *sectionEnd{};
+    print(INFO("sectionHeader: %p"), sectionHeader);
+    if (!win::MmIsAddressValid(sectionHeader)) return nullptr;
 
     // loop
+    void *sectionStart{}, *sectionEnd{};
     for (int i = 0; i < fileHeader->NumberOfSections; i++)
     {
         if (!memcmp(sectionHeader[i].Name, SectionName, 8))
@@ -234,5 +247,7 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     }
 
     // Signature Scan
-    return SignatureScan(sectionStart, sectionEnd, Signature);
+    void* tmp = SignatureScan(sectionStart, sectionEnd, Signature);
+    print(INFO("Signature: %p"), tmp);
+    return tmp;
 }
