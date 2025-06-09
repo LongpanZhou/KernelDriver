@@ -17,12 +17,11 @@ ntstatus DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING)
     // void* pModule = EnumerateModuleBaseAddress(pEProcess, L"ntdll.dll");
     // print(INFO("Module Address: %p"), pModule);
 
-    // _EPROCESS* pEProcess = EnumerateEProcess(L"System", 4);
-    // void* pModule = EnumerateModuleBaseAddress(pEProcess, L"ntdll.dll");
-    // print(INFO("Module Address: %p"), pModule);
+    // void *tmp = EnumerateKProcess(L"ntoskrnl.exe");
+    // auto t = ReadVirtualMemory<void *>(tmp, 0x1ad000);
+    // print(INFO("value: %p"), t);
 
-    void* tmp = EnumerateKProcess(L"ntoskrnl.exe");
-    auto t = ReadVirtualMemory<void*>(tmp, 0x1ad000);
-    print(INFO("value: %p"), t);
+    TextSectionScan(L"",L"ntoskrnl.exe","");
+    TextSectionScan(L"notepad.exe",L"ntdll.dll","");
     return ntstatus::success;
 }
