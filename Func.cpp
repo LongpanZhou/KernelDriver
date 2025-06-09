@@ -148,11 +148,12 @@ PVOID SignatureScan(const void *StartAddress, const void *EndAddress, const char
     return nullptr;
 }
 
-PVOID TextSectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const char *Signature)
+PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const char *SectionName, const char *Signature)
 {
     // Print info
     print(INFO("ProcessName: %ws"), ProcessName);
     print(INFO("ModuleName: %ws"), ModuleName);
+    print(INFO("SectionName: %s"), SectionName);
     print(INFO("Signature: %s"), Signature);
 
     // Initialize variables (empty = Kernel, else = User)
@@ -161,25 +162,25 @@ PVOID TextSectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, con
                               : EnumerateModuleBaseAddress(EnumerateEProcess(ProcessName), ModuleName);
     if (!BaseAddress) return nullptr;
 
-    // Get .text section
+    // Get section
     _IMAGE_DOS_HEADER *dosHeader = (_IMAGE_DOS_HEADER *) BaseAddress;
     _IMAGE_NT_HEADERS64 *ntHeader = (_IMAGE_NT_HEADERS64 *) (BaseAddress + dosHeader->e_lfanew);
     _IMAGE_FILE_HEADER *fileHeader = &ntHeader->FileHeader;
     _IMAGE_OPTIONAL_HEADER64 *optionalHeader = &ntHeader->OptionalHeader;
     _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *) ((uint64_t)optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
-    void *textSectionStart{}, *textSectionEnd{};
+    void *sectionStart{}, *sectionEnd{};
 
     // loop
     for (int i = 0; i < fileHeader->NumberOfSections; i++)
     {
-        if (!memcmp(sectionHeader[i].Name, ".text\0\0\0", 8))
+        if (!memcmp(sectionHeader[i].Name, SectionName, 8))
         {
-            textSectionStart = BaseAddress + sectionHeader[i].VirtualAddress;
-            textSectionEnd = BaseAddress + sectionHeader->VirtualAddress + sectionHeader[i].Misc.VirtualSize;
+            sectionStart = BaseAddress + sectionHeader[i].VirtualAddress;
+            sectionEnd = BaseAddress + sectionHeader->VirtualAddress + sectionHeader[i].Misc.VirtualSize;
             break;
         }
     }
 
     // Signature Scan
-    return SignatureScan(textSectionStart, textSectionEnd, Signature);
+    return SignatureScan(sectionStart, sectionEnd, Signature);
 }
