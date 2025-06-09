@@ -21,7 +21,9 @@ ntstatus DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING)
     // auto t = ReadVirtualMemory<void *>(tmp, 0x1ad000);
     // print(INFO("value: %p"), t);
 
-    SectionScan(L"",L"ntoskrnl.exe",".text\0\0\0","");
-    SectionScan(L"notepad.exe",L"ntdll.dll",".text\0\0\0","");
+    char test[] = "48 89 5C 24 ? 48 89 74 24 ? 57 41 56 41 57 48 81 EC";
+    //SectionScan(L"",L"ntoskrnl.exe",".text\0\0\0",test);
+    void* tmp = SectionScan(L"notepad.exe",L"ntdll.dll",".text\0\0\0",test);
+    print(INFO("address: %p"),tmp);
     return ntstatus::success;
 }

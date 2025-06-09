@@ -1,3 +1,5 @@
+#include <__filesystem/operations.h>
+
 #include "Mem.cpp"
 
 PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName)
@@ -143,12 +145,61 @@ _EPROCESS *EnumerateEProcess(const wchar_t *ProcessName, const uint64_t PID = -1
     return nullptr;
 }
 
-PVOID SignatureScan(const void *StartAddress, const void *EndAddress, const char *Signature)
+__forceinline CHAR HexToByte(char c)
 {
+    if (c >= '0' && c <= '9') return (c - '0');
+    if (c >= 'A' && c <= 'F') return (c - 'A' + 0xA);
+    if (c >= 'a' && c <= 'f') return (c - 'a' + 0xA);
+    return 0xFF; //Invalid
+}
+
+PVOID PatternToBytes(char *const Signature)
+{
+    size_t i = 0;
+    size_t len = 0;
+
+    while (i < strlen(Signature))
+    {
+        switch (Signature[i])
+        {
+            case ' ':
+                break;
+            case '?':
+                Signature[len++] = '?';
+                break;
+            default:
+                char high = HexToByte(Signature[i]);
+                char low = HexToByte(Signature[++i]);
+                Signature[len++] = (high<<4 | low);
+        }
+        ++i;
+    }
+
+    Signature[len] = '\0';
+    return Signature;
+}
+
+PVOID SignatureScan(const void *StartAddress, const void *EndAddress, char *const Signature)
+{
+    // This algo is so slow
+    PatternToBytes(Signature);
+    size_t size = strlen(Signature);
+
+    for (const char *Current = (char *) StartAddress; Current <= (char *) ((size_t)EndAddress - size); ++Current)
+        for (size_t i = 0; i <= size; ++i)
+        {
+            if (i == size)
+                return (void *) Current;
+
+            if (Signature[i] != '?' && Signature[i] != Current[i])
+                break;
+        }
+
+    print(ERROR("SIGNATURE NOT FOUND!"));
     return nullptr;
 }
 
-PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const char *SectionName, const char *Signature)
+PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const char *SectionName, char *const Signature)
 {
     // Print info
     print(INFO("ProcessName: %ws"), ProcessName);
@@ -167,7 +218,8 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     _IMAGE_NT_HEADERS64 *ntHeader = (_IMAGE_NT_HEADERS64 *) (BaseAddress + dosHeader->e_lfanew);
     _IMAGE_FILE_HEADER *fileHeader = &ntHeader->FileHeader;
     _IMAGE_OPTIONAL_HEADER64 *optionalHeader = &ntHeader->OptionalHeader;
-    _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *) ((uint64_t)optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
+    _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *) (
+        (uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
     void *sectionStart{}, *sectionEnd{};
 
     // loop
