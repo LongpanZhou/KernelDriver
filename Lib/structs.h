@@ -322,6 +322,8 @@ struct _KEVENT
 //0x30 bytes (sizeof)
 struct _KAPC_STATE
 {
+    uint64_t* operator&() noexcept {return (uint64_t*)this;}
+
     struct _LIST_ENTRY ApcListHead[2];                                      //0x0
     struct _KPROCESS* Process;                                              //0x20
     union

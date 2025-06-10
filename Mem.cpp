@@ -221,13 +221,13 @@ template<typename T>
 T ReadVirtualMemory(address TargetAddress, cr3 CR3)
 {
     std::pair<address,int> tmp = GetPhysicalAddress(TargetAddress, CR3);
-    if (!win::MmIsAddressValid(tmp.first)) return T{};
+    if (!tmp.first) return T{};
     return ReadPhysical<T>(tmp.first, tmp.second);
 }
 
 bool ReadVirtualMemory(address VirtualAddress, cr3 CR3, void *pBuffer, size_t Size)
 {
     std::pair<address,int> tmp = GetPhysicalAddress(VirtualAddress, CR3);
-    if (!win::MmIsAddressValid(tmp.first)) return false;
+    if (!tmp.first) return false;
     return ReadPhysical(tmp.first, pBuffer, Size, tmp.second);
 }

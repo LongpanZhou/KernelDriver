@@ -11,15 +11,15 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
     _KPROCESS *pKProcess = (_KPROCESS *) CONTAINING_RECORD(pEProcess, _EPROCESS, Pcb);
     cr3 CR3 = {pKProcess->DirectoryTableBase};
     print(INFO("KProcess Address: %p"), pKProcess);
-    print(INFO("KProcess CR3: %p"), (ULONGLONG) CR3);
+    print(INFO("KProcess CR3: %p"), CR3);
 
     // Get PEB (Process Environment Block)
     _PEB *pPeb = pEProcess->Peb;
-    if (!win::MmIsAddressValid(pPeb)) return nullptr;
+    if (!pPeb) return nullptr;
 
     // Read LDR (Loader Dynamic Resources)
     _PEB_LDR_DATA *pLdr = ReadVirtualMemory<_PEB_LDR_DATA *>(&pPeb->Ldr, CR3);
-    if (!win::MmIsAddressValid(pLdr)) return nullptr;
+    if (!pLdr) return nullptr;
 
     // Init variables for loop
     wchar_t pBuffer[256];
@@ -229,8 +229,7 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     print(INFO("optionalHeader: %p"), optionalHeader);
     if (!win::MmIsAddressValid(optionalHeader)) return nullptr;
 
-    _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *) (
-        (uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
+    _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *)((uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
     print(INFO("sectionHeader: %p"), sectionHeader);
     if (!win::MmIsAddressValid(sectionHeader)) return nullptr;
 
