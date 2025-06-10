@@ -4,6 +4,7 @@
 # complied
 x64/
 Test driver/x64/
+packages/
 
 # Prerequisites
 *.d
