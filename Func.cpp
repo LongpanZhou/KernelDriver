@@ -8,7 +8,7 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
     print(INFO("Target Module Name: %ws"), ModuleName);
 
     // Get KProcess n CR3
-    _KPROCESS *pKProcess = (_KPROCESS *) CONTAINING_RECORD(pEProcess, _EPROCESS, Pcb);
+    _KPROCESS *pKProcess = (_KPROCESS *)pEProcess;
     cr3 CR3 = {pKProcess->DirectoryTableBase};
     print(INFO("KProcess Address: %p"), pKProcess);
     print(INFO("KProcess CR3: %p"), CR3);
@@ -18,13 +18,14 @@ PVOID EnumerateModuleBaseAddress(_EPROCESS *pEProcess, const wchar_t *ModuleName
     if (!pPeb) return nullptr;
 
     // Read LDR (Loader Dynamic Resources)
-    _PEB_LDR_DATA *pLdr = ReadVirtualMemory<_PEB_LDR_DATA *>(&pPeb->Ldr, CR3);
+    auto *pLdr = ReadVirtualMemory<_PEB_LDR_DATA *>(&pPeb->Ldr, CR3);
     if (!pLdr) return nullptr;
 
     // Init variables for loop
     wchar_t pBuffer[256];
+    auto moduleList = ReadVirtualMemory<_LIST_ENTRY>(&pLdr->InLoadOrderModuleList, CR3);
+
     _LDR_DATA_TABLE_ENTRY entry;
-    _LIST_ENTRY moduleList = ReadVirtualMemory<_LIST_ENTRY>(&pLdr->InLoadOrderModuleList, CR3);
     UNICODE_STRING moduleName;
 
     _LIST_ENTRY *pHead = moduleList.Flink;
@@ -237,7 +238,7 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     void *sectionStart{}, *sectionEnd{};
     for (int i = 0; i < fileHeader->NumberOfSections; i++)
     {
-        if (!memcmp(sectionHeader[i].Name, SectionName, 8))
+        if (!memcmp(sectionHeader[i].Name, SectionName, std::min(8,(int)strlen(SectionName))))
         {
             sectionStart = BaseAddress + sectionHeader[i].VirtualAddress;
             sectionEnd = BaseAddress + sectionHeader->VirtualAddress + sectionHeader[i].Misc.VirtualSize;
