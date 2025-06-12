@@ -9,6 +9,7 @@ func_type OriginalFunc;
 
 uint64_t __fastcall Func(uint64_t Param)
 {
+    print(INFO("Hit"));
     return OriginalFunc ? OriginalFunc(Param) : 0xC000001C;
 }
 
