@@ -1,16 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
 project(Driver)
 
-# Clang-specific size optimizations
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Oz -flto -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -g0 -nostdlib")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections -Wl,--strip-all")
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Add custom module path if needed
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vendor/")
-find_package(WDK REQUIRED)
+find_package(CrossWDK REQUIRED)
 
 # Driver entry point
 wdk_add_driver(Driver

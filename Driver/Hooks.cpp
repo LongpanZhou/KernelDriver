@@ -1,4 +1,3 @@
-#include "wdk/intrin/intrin.hpp"
 _KPROCESS *KProcess;
 _KAPC_STATE KapcState;
 address *pData;
