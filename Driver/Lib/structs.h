@@ -32,6 +32,23 @@ struct _IMAGE_DATA_DIRECTORY
     ULONG Size;                                                             //0x4
 };
 
+// 0x28 bytes (sizeof)
+struct _IMAGE_EXPORT_DIRECTORY
+{
+    ULONG  Characteristics;                                                 //0x0
+    ULONG  TimeDateStamp;                                                   //0x4
+    USHORT MajorVersion;                                                    //0x8
+    USHORT MinorVersion;                                                    //0xa
+    ULONG  Name;                                                            //0xc
+    ULONG  Base;                                                            //0x10
+    ULONG  NumberOfFunctions;                                               //0x14
+    ULONG  NumberOfNames;                                                   //0x18
+    ULONG  AddressOfFunctions;                                              //0x1c
+    ULONG  AddressOfNames;                                                  //0x20
+    ULONG  AddressOfNameOrdinals;                                           //0x24
+};
+
+
 //0x40 bytes (sizeof)
 struct _IMAGE_DOS_HEADER
 {

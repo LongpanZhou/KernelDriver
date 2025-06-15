@@ -3,7 +3,7 @@
 
 ntstatus DriverExit(PDRIVER_OBJECT)
 {
-    unhook();
+    UnHook();
     ReadPhysical<address>(nullptr, Page_Unmap);
     return ntstatus::success;
 }
@@ -23,6 +23,6 @@ ntstatus DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING)
     // auto t = ReadVirtualMemory<void *>(tmp, 0x1ad000);
     // print(INFO("value: %p"), t);
 
-    hook();
+    Hook();
     return ntstatus::success;
 }

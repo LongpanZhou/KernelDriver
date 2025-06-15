@@ -214,23 +214,23 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
     if (!win::MmIsAddressValid(BaseAddress)) return nullptr;
 
     // Get section
-    _IMAGE_DOS_HEADER *dosHeader = (_IMAGE_DOS_HEADER *) BaseAddress;
+    auto *dosHeader = (_IMAGE_DOS_HEADER *) BaseAddress;
     print(INFO("dosHeader: %p"), dosHeader);
     if (!win::MmIsAddressValid(dosHeader)) return nullptr;
 
-    _IMAGE_NT_HEADERS64 *ntHeader = (_IMAGE_NT_HEADERS64 *) (BaseAddress + dosHeader->e_lfanew);
+    auto *ntHeader = (_IMAGE_NT_HEADERS64 *) (BaseAddress + dosHeader->e_lfanew);
     print(INFO("ntHeader: %p"), ntHeader);
     if (!win::MmIsAddressValid(ntHeader)) return nullptr;
 
-    _IMAGE_FILE_HEADER *fileHeader = &ntHeader->FileHeader;
+    auto *fileHeader = &ntHeader->FileHeader;
     print(INFO("fileHeader: %p"), fileHeader);
     if (!win::MmIsAddressValid(fileHeader)) return nullptr;
 
-    _IMAGE_OPTIONAL_HEADER64 *optionalHeader = &ntHeader->OptionalHeader;
+    auto *optionalHeader = &ntHeader->OptionalHeader;
     print(INFO("optionalHeader: %p"), optionalHeader);
     if (!win::MmIsAddressValid(optionalHeader)) return nullptr;
 
-    _IMAGE_SECTION_HEADER *sectionHeader = (_IMAGE_SECTION_HEADER *)((uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
+    auto *sectionHeader = (_IMAGE_SECTION_HEADER *)((uint64_t) optionalHeader + sizeof(_IMAGE_OPTIONAL_HEADER64));
     print(INFO("sectionHeader: %p"), sectionHeader);
     if (!win::MmIsAddressValid(sectionHeader)) return nullptr;
 
