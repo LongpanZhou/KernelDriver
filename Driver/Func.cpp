@@ -241,7 +241,7 @@ PVOID SectionScan(const wchar_t *ProcessName, const wchar_t *ModuleName, const c
         if (!memcmp(sectionHeader[i].Name, SectionName, std::min(8,(int)strlen(SectionName))))
         {
             sectionStart = BaseAddress + sectionHeader[i].VirtualAddress;
-            sectionEnd = BaseAddress + sectionHeader->VirtualAddress + sectionHeader[i].Misc.VirtualSize;
+            sectionEnd = BaseAddress + sectionHeader[i].VirtualAddress + sectionHeader[i].Misc.VirtualSize;
             break;
         }
     }
